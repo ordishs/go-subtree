@@ -3,6 +3,7 @@ package subtree
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -474,6 +475,48 @@ func (st *Subtree) RootHash() *chainhash.Hash {
 	st.rootHash, _ = chainhash.NewHash((*store)[len(*store)-1][:])
 
 	return st.rootHash
+}
+
+// RootHashPadded computes the merkle root of the subtree and then lifts it to
+// `targetHeight` by repeatedly hashing the root with itself (H(prev, prev) per
+// level), matching Bitcoin's duplicate-last-when-odd rule applied to phantom
+// slots. This makes the composition of subtree roots produce the same result as
+// building a single merkle tree over all leaves.
+//
+// Preconditions:
+//   - len(Nodes) must be a power of two (or 0).
+//   - targetHeight must be >= the height implied by the actual leaf count.
+//
+// Returns (nil, nil) for an empty subtree, matching RootHash's behavior.
+func (st *Subtree) RootHashPadded(targetHeight int) (*chainhash.Hash, error) {
+	if st == nil {
+		return nil, ErrSubtreeNil
+	}
+
+	length := st.Length()
+	if length == 0 {
+		return nil, nil //nolint:nilnil // mirrors RootHash's nil-for-empty contract; empty subtree is not an error condition
+	}
+
+	if !IsPowerOfTwo(length) {
+		return nil, ErrNotPowerOfTwoLeafCount
+	}
+
+	actualHeight := int(math.Log2(float64(length)))
+	if targetHeight < actualHeight {
+		return nil, ErrTargetHeightTooSmall
+	}
+
+	root := *st.RootHash()
+	for range targetHeight - actualHeight {
+		var buf [64]byte
+		copy(buf[0:32], root[:])
+		copy(buf[32:64], root[:])
+		first := sha256.Sum256(buf[:])
+		root = chainhash.Hash(sha256.Sum256(first[:]))
+	}
+
+	return &root, nil
 }
 
 // RootHashWithReplaceRootNode replaces the root node of the subtree with the given node and returns the new root hash.
