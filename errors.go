@@ -44,6 +44,15 @@ var (
 
 	// ErrNodeNotFound is returned when a node is not found
 	ErrNodeNotFound = errors.New("node not found")
+
+	// ErrTargetHeightTooSmall is returned when RootHashPadded is asked to lift a
+	// subtree to a height that is smaller than the height implied by its current
+	// leaf count.
+	ErrTargetHeightTooSmall = errors.New("target height is smaller than the subtree's actual height")
+
+	// ErrNotPowerOfTwoLeafCount is returned when a subtree's actual leaf count is
+	// not a power of two, which violates the precondition for RootHashPadded.
+	ErrNotPowerOfTwoLeafCount = errors.New("subtree leaf count is not a power of two")
 )
 
 // Data mismatch errors
