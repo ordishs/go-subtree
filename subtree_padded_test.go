@@ -33,3 +33,89 @@ func TestRootHashPadded_LiftsTwoLeafSubtreeToHeightEight(t *testing.T) {
 
 	require.Equal(t, expected.String(), lifted.String())
 }
+
+func TestRootHashPadded_NoLiftWhenAlreadyAtTargetHeight(t *testing.T) {
+	st, err := NewTreeByLeafCount(4)
+	require.NoError(t, err)
+
+	for i := range 4 {
+		h := chainhash.HashH([]byte{byte(i)})
+		require.NoError(t, st.AddNode(h, 0, 0))
+	}
+
+	padded, err := st.RootHashPadded(2)
+	require.NoError(t, err)
+	require.Equal(t, st.RootHash().String(), padded.String())
+}
+
+func TestRootHashPadded_EmptySubtreeReturnsNil(t *testing.T) {
+	st, err := NewTreeByLeafCount(4)
+	require.NoError(t, err)
+
+	padded, err := st.RootHashPadded(2)
+	require.NoError(t, err)
+	require.Nil(t, padded)
+}
+
+func TestRootHashPadded_NotPowerOfTwoErrors(t *testing.T) {
+	st, err := NewTreeByLeafCount(4)
+	require.NoError(t, err)
+
+	h := chainhash.HashH([]byte{0x01})
+	require.NoError(t, st.AddNode(h, 0, 0))
+	h2 := chainhash.HashH([]byte{0x02})
+	require.NoError(t, st.AddNode(h2, 0, 0))
+	h3 := chainhash.HashH([]byte{0x03})
+	require.NoError(t, st.AddNode(h3, 0, 0))
+
+	_, err = st.RootHashPadded(2)
+	require.ErrorIs(t, err, ErrNotPowerOfTwoLeafCount)
+}
+
+func TestRootHashPadded_TargetHeightTooSmallErrors(t *testing.T) {
+	st, err := NewTreeByLeafCount(4)
+	require.NoError(t, err)
+
+	for i := range 4 {
+		h := chainhash.HashH([]byte{byte(i)})
+		require.NoError(t, st.AddNode(h, 0, 0))
+	}
+
+	_, err = st.RootHashPadded(1)
+	require.ErrorIs(t, err, ErrTargetHeightTooSmall)
+}
+
+func TestRootHashPadded_MatchesBigTreeRoot(t *testing.T) {
+	bigTree, err := NewTreeByLeafCount(16)
+	require.NoError(t, err)
+
+	hashes := make([]chainhash.Hash, 10)
+	for i := range hashes {
+		hashes[i] = chainhash.HashH([]byte{byte(i + 1)})
+		require.NoError(t, bigTree.AddNode(hashes[i], 0, 0))
+	}
+
+	left, err := NewTreeByLeafCount(8)
+	require.NoError(t, err)
+	for i := range 8 {
+		require.NoError(t, left.AddNode(hashes[i], 0, 0))
+	}
+
+	right, err := NewTreeByLeafCount(8)
+	require.NoError(t, err)
+	for i := 8; i < 10; i++ {
+		require.NoError(t, right.AddNode(hashes[i], 0, 0))
+	}
+
+	leftRoot, err := left.RootHashPadded(3)
+	require.NoError(t, err)
+	rightRoot, err := right.RootHashPadded(3)
+	require.NoError(t, err)
+
+	top, err := NewTreeByLeafCount(2)
+	require.NoError(t, err)
+	require.NoError(t, top.AddNode(*leftRoot, 0, 0))
+	require.NoError(t, top.AddNode(*rightRoot, 0, 0))
+
+	require.Equal(t, bigTree.RootHash().String(), top.RootHash().String())
+}
