@@ -119,3 +119,54 @@ func TestRootHashPadded_MatchesBigTreeRoot(t *testing.T) {
 
 	require.Equal(t, bigTree.RootHash().String(), top.RootHash().String())
 }
+
+// TestRootHashPadded_MatchesBitcoinRootAt258Txs proves at block scale that the
+// bitcoin merkle root of N transactions equals the root produced by composing
+// two fixed-height subtree roots — a complete left subtree and a partially-
+// filled right subtree lifted to the same height via RootHashPadded.
+//
+// Tree 1 holds all 258 leaves directly. NewIncompleteTreeByLeafCount(258)
+// rounds the capacity up to 512 (the next power of two), and the merkle
+// builder pads the unused slots with the zero hash; calcMerkle's "duplicate
+// the left child when the right is empty" rule then collapses those zeros
+// exactly the way bitcoin's "duplicate-last-when-odd" rule does, level by
+// level, so tree 1's RootHash() is the bitcoin-correct merkle root.
+func TestRootHashPadded_MatchesBitcoinRootAt258Txs(t *testing.T) {
+	const (
+		totalTxs        = 258
+		subtreeCapacity = 256
+	)
+
+	txHashes := make([]chainhash.Hash, totalTxs)
+	for i := range txHashes {
+		txHashes[i] = chainhash.HashH([]byte{byte(i), byte(i >> 8)})
+	}
+
+	tree1, err := NewIncompleteTreeByLeafCount(totalTxs)
+	require.NoError(t, err)
+	for _, h := range txHashes {
+		require.NoError(t, tree1.AddNode(h, 0, 0))
+	}
+	bitcoinRoot := tree1.RootHash()
+	require.NotNil(t, bitcoinRoot)
+
+	tree2, err := NewTreeByLeafCount(subtreeCapacity)
+	require.NoError(t, err)
+	for i := range subtreeCapacity {
+		require.NoError(t, tree2.AddNode(txHashes[i], 0, 0))
+	}
+
+	tree3, err := NewTreeByLeafCount(subtreeCapacity)
+	require.NoError(t, err)
+	require.NoError(t, tree3.AddNode(txHashes[256], 0, 0))
+	require.NoError(t, tree3.AddNode(txHashes[257], 0, 0))
+	tree3Root, err := tree3.RootHashPadded(tree2.Height)
+	require.NoError(t, err)
+
+	tree4, err := NewTreeByLeafCount(2)
+	require.NoError(t, err)
+	require.NoError(t, tree4.AddNode(*tree2.RootHash(), 0, 0))
+	require.NoError(t, tree4.AddNode(*tree3Root, 0, 0))
+
+	require.Equal(t, bitcoinRoot.String(), tree4.RootHash().String())
+}
