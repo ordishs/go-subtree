@@ -2,8 +2,12 @@
 
 Module: `github.com/bsv-blockchain/go-subtree` (package `subtree`)
 Go version: 1.25+
+Derived from commit: `c2649a5` (`master`, equal to `upstream/master` at time of writing)
+Key dependency versions at that commit: `go-bt/v2 v2.6.7`, `go-safe-conversion v1.2.0`, `go-tx-map v1.3.9`
 
 This document specifies the data structures, algorithms, wire formats, and behavioural contracts implemented by the `subtree` package. It is derived directly from the Go source code and is intended to be sufficient for an independent, byte-compatible re-implementation.
+
+> **Provenance.** This spec describes the `.go` source at the commit named above. When updating the spec, re-verify against the then-current tip; commits that touch only CI config, linters, or dependency pins (such as `#130`–`#136`, which changed no `.go` files) do not affect the contracts below, but a dependency bump that alters `go-bt` hash or transaction semantics would.
 
 ---
 
